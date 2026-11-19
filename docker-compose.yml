@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16-alpine
     environment:
@@ -62,6 +62,8 @@ services:
     build:
       context: .
       dockerfile: discovery-server/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     ports: ["8761:8761"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]
@@ -74,11 +76,16 @@ services:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     ports: ["8080:8080"]
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
+      AUTH_URL: http://auth-service:8081
     depends_on:
       discovery-server:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
@@ -91,9 +98,20 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
+      DB_URL: jdbc:postgresql://postgres:5432/hotelsaas
+      DB_USER: hotelsaas
+      DB_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_only}"
+      REDIS_HOST: redis
+      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:-}"
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       discovery-server:
         condition: service_healthy
     healthcheck:
@@ -101,12 +119,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 60s
+      start_period: 90s
   tenant-service:
     profiles: [apps]
     build:
       context: .
       dockerfile: tenant-service/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
     depends_on:
@@ -123,6 +143,8 @@ services:
     build:
       context: .
       dockerfile: billing-service/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
     depends_on:
@@ -139,6 +161,8 @@ services:
     build:
       context: .
       dockerfile: notification-service/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
     depends_on:
@@ -155,6 +179,8 @@ services:
     build:
       context: .
       dockerfile: audit-service/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
     depends_on:
@@ -171,6 +197,8 @@ services:
     build:
       context: .
       dockerfile: hotel-core/Dockerfile
+      args:
+        MAVEN_MIRROR: ${MAVEN_MIRROR:-https://repo.maven.apache.org/maven2}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka/
     depends_on:
@@ -187,3 +215,9 @@ volumes:
   redis_data:
   rabbitmq_data:
   minio_data:
+
+
+
+
+
+

@@ -39,3 +39,9 @@ RLS is enabled and forced for tenant tables using the transaction-local `app.ten
 Store payment method and lifecycle state as checked text values so Release 1 supports CASH and manual UPI only.
 Enforce UPI reference uniqueness per tenant except for rejected entries; do not add a bill-level unique key.
 The Release 1 one-payment rule remains in application domain logic, preserving the documented additive split-payment path.
+
+## ADR-008: Auth token and session storage
+
+Use HS256 JWTs with a `kid`, 15-minute access lifetime, and seven-day rotating refresh tokens stored as SHA-256 hashes.
+Refresh families are locked during rotation and revoked when reuse is detected; Redis stores access-token blacklists and permission cache entries.
+Production deployments set `JWT_SECRET_BASE64`; an unset key generates an ephemeral local-development key so a fresh compose stack can start.
