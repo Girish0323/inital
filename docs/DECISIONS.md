@@ -2,7 +2,7 @@
 
 ## ADR-001: Entity ID strategy
 
-Use UUID primary keys for persistence; UUIDs are generated in the application.
+Use UUIDv4 primary keys for persistence; UUIDs are generated in the application (with a database default for direct inserts).
 This keeps identifiers globally unique across services without sequence coordination.
 Tenant and order business identifiers remain separate formatted strings.
 
@@ -27,3 +27,15 @@ The deployment default for platform business time is Asia/Kolkata.
 Use the maintained PGSTY Silo image as the local MinIO-compatible object store.
 MinIO community container images were withdrawn from public registries, so this pinned fork preserves the S3 and MinIO API expected by the project.
 The compose service and developer-facing endpoint remain named MinIO for compatibility.
+
+## ADR-006: Phase 1 schema ownership and RLS
+
+Use UUIDv4 surrogate keys and `tenant_id VARCHAR(14)` on tenant-owned rows; composite tenant foreign keys prevent cross-hotel references.
+The shared development database separates ownership into `auth`, `tenant`, `core`, `billing`, and `audit` schemas.
+RLS is enabled and forced for tenant tables using the transaction-local `app.tenant_id`; the migration principal is separate from runtime roles.
+
+## ADR-007: Payment storage constraints
+
+Store payment method and lifecycle state as checked text values so Release 1 supports CASH and manual UPI only.
+Enforce UPI reference uniqueness per tenant except for rejected entries; do not add a bill-level unique key.
+The Release 1 one-payment rule remains in application domain logic, preserving the documented additive split-payment path.
