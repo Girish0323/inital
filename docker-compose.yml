@@ -1,0 +1,189 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hotelsaas
+      POSTGRES_USER: hotelsaas
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_only}"
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsaas -d hotelsaas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: hotelsaas
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:-local_dev_only}"
+    volumes: [rabbitmq_data:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports: ["1025:1025", "8025:8025"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8025/api/v2/messages >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  minio:
+    image: docker.io/pgsty/silo:RELEASE.2026-11-12T00-00-00Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-localminio}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-local_minio_only}"
+      MC_HOST_local: "http://${MINIO_ROOT_USER:-localminio}:${MINIO_ROOT_PASSWORD:-local_minio_only}@127.0.0.1:9000"
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [minio_data:/data]
+    healthcheck:
+      test: ["CMD", "mcli", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  discovery-server:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: discovery-server/Dockerfile
+    ports: ["8761:8761"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 50s
+  gateway:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports: ["8080:8080"]
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  auth-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  tenant-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: tenant-service/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  billing-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: billing-service/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  notification-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  audit-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: audit-service/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  hotel-core:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: hotel-core/Dockerfile
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka/
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8086/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:

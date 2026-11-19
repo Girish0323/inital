@@ -1,0 +1,12 @@
+package com.hotelsaas.common.error;
+
+public enum ErrorCode {
+  NOT_FOUND,
+  VALIDATION_ERROR,
+  CONFLICT,
+  FORBIDDEN,
+  UNAUTHORIZED,
+  BUSINESS_RULE_VIOLATION,
+  INTERNAL_ERROR,
+  TENANT_PREFIX_EXHAUSTED
+}
